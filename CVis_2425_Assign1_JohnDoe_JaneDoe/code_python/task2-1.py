@@ -7,7 +7,6 @@ gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 # GaussianBlur to reduce noise and improve contour detection
 blurred_image = cv2.GaussianBlur(gray_image, (5, 5), 0)
-
 #use Canny edge detection to find edges in the image
 edges = cv2.Canny(blurred_image, 70, 150)
 # cv2.imshow('Blurred Image', edges)
@@ -15,14 +14,11 @@ edges = cv2.Canny(blurred_image, 70, 150)
 # cv2.destroyAllWindows()
 # find contours in the edged image
 contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
 #largest circular contour is the clock face
 clock_contour = max(contours, key=cv2.contourArea)
-
 # create a mask for the clock face
 mask = np.zeros_like(gray_image)
 cv2.drawContours(mask, [clock_contour], -1, 255, -1)
-
 # Extract the clock face using the mask
 clock_face = cv2.bitwise_and(gray_image, gray_image, mask=mask)
 # cv2.imshow('Clock Face',clock_face)
@@ -56,7 +52,7 @@ def distance_from_center(line, center):
 # Find the three lines closest to the center
 lines = sorted(lines, key=lambda line: distance_from_center(line, center))[:5]
 # Print the length of each line
-lengths=np.zeros(5)    
+lengths=np.zeros(5)
 j=0  
 for line in lines:
     x1, y1, x2, y2 = line[0]
@@ -159,16 +155,6 @@ elif (pos==2 and i==3) or (pos==3 and i ==2):
     hour = int(((ang1+90) % 360) / 30)
 
 print(f"Hour: {hour}, Minute: {min}, Second: {sec}")
-
-# if sum_length_1 > sum_length_2 and sum_length_1 > sum_length_3:
-#     sec = int(((ang1+90) % 360) / 6)
-#     print(sec)
-# elif sum_length_2 > sum_length_1 and sum_length_2 > sum_length_3:
-#     sec = int(((ang2+90) % 360) / 6)
-#     print(sec)
-# elif sum_length_3 > sum_length_1 and sum_length_3 > sum_length_2:
-#     sec = int(((ang3+90) % 360) / 6)
-#     print(sec)
 
 detected_time = f"{hour:02d}:{min:02d}:{sec:02d}"
 
