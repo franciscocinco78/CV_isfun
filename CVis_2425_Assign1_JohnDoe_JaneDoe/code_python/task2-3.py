@@ -1,17 +1,23 @@
 import cv2
 import numpy as np
+import csv
+import os
 
+# Set to True to show intermediate steps of the process, and show extra information
 SHOW_MIDDLE_STEPS = False
 
-center = None # center of the clock face, will not be calculated each frame, as it is assumed to be constant
-radius = 0
+# center of the clock face, will not be calculated each frame, as it is assumed to be constant
+center = None 
+radius = 0  # same situation as 'center'
 
+# useful fuction to log relevant data when a critial error occurs
 def logData(img):
     global center, radius
     print(f"center: {center}")
     print(f"radius: {radius}")
     cv2.imwrite(f'troublesome_frame.png', img)
 
+# Function to get the angle of a line with respect to the center of the clock face
 def getAngleFromCenter(line, _center):
     x1, y1, x2, y2 = line[0][0]
     dist1 = np.sqrt((x1 - _center[0])**2 + (y1 - _center[1])**2)
@@ -28,11 +34,12 @@ def showImage(d,i):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+# Function to process the image and detect the time
+# Most of the code is the same as in script of task 2-2 
 def doStuff(image):
-    global center, radius
-    # image_path = 'data/clock.png'
-    # image = cv2.imread(image_path)
-    image_input = image.copy()
+    global center, radius # allow access to global variables
+    
+    image_input = image.copy() # this copy is used to log the frame in case of error
     # using HSV color space to isolate the clock
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -52,10 +59,11 @@ def doStuff(image):
 
     # Convert the isolated clock face to grayscale, will be later used to detect min and hour pointers
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # Convert the grayscale image to pure black and white
+    # Convert the grayscale image to pure black and white, ignore returned threshold value
     _, black_and_white_image = cv2.threshold(gray_image, 70, 255, cv2.THRESH_BINARY)
     
-    if center is None:
+    if center is None: # center not yet defined? Find it!
+        # It will remain constant for all remaining frames, saving processing time and preventing unthinkable bugs that made me create this
         edges = cv2.Canny(black_and_white_image, 70, 150)
         contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         clock_contour = max(contours, key=cv2.contourArea)
@@ -63,7 +71,7 @@ def doStuff(image):
         (x, y), radius = cv2.minEnclosingCircle(clock_contour)
         center = (int(x), int(y))
         radius = int(radius)
-    # print('Radius:', int(radius))
+    
     if SHOW_MIDDLE_STEPS:
         cv2.circle(image, center, radius, (0, 0, 255), 2)
         cv2.circle(image, center, 5, (0, 0, 255), -1)
@@ -132,6 +140,9 @@ def doStuff(image):
         
     edges = cv2.Canny(black_and_white_image, 70, 150)
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=50, minLineLength=30, maxLineGap=20)
+    # A lot of lines are detected. Duplicates are detected by comparing the angles relative
+    # to the center of the clock face. Lines too distant from the clock center are discarded.
+    # 'too distant' = radius/2
     closest_lines = []
     angles = []
     i=0
@@ -165,6 +176,8 @@ def doStuff(image):
                     continue
                 elif ang != 400:
                     print(f"Unexpected third angle!!! {ang}")
+                    logData(image_input)
+                    raise Exception("Unexpected third angle detected!! Exported troublesome frame.")
                     continue
             elif ang != 400:
                 angles.append(ang)
@@ -185,7 +198,7 @@ def doStuff(image):
     
     x1, y1, x2, y2 = closest_lines[0][0]
     d0=(np.sqrt( (x1-x2)**2 + (y1-y2)**2 ))
-    if len(closest_lines) < 2:
+    if len(closest_lines) < 2:  # only one line detected? Hour and minutes must be overlapping
         closest_lines.append(closest_lines[0])
         if len(angles) < 2:
             angles.append(angles[0])
@@ -211,35 +224,25 @@ def doStuff(image):
             for line in closest_lines:
                 x1, y1, x2, y2 = line[0]
                 cv2.line(image_copy, (x1, y1), (x2, y2), (255, 0, 0), 2)
-
         showImage('Detected Closest Lines on Clock Face', image_copy)
 
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    # Overlay the detected time on the original image
-    # cv2.putText(image, detected_time, (center[0] - 50, center[1] + radius + 30), 
-    #             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
 
 def processVideo(video_path):
     cap = cv2.VideoCapture(video_path)
     e=0
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret:
+        if not ret: # Frame not OK ?
             break
-        detected_time=''
-        # try:
-        #     detected_time = doStuff(frame)
-        #     cv2.putText(frame, detected_time, (100, 100), 
-        #                 cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-        #     cv2.imshow('Processed Frame', frame)
-        # except:
-        #     print(f"Error at frame {e}")
-
         print(f"-> Processing frame {e}")
         detected_time = doStuff(frame)
         cv2.putText(frame, detected_time, (100, 100), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
         cv2.imshow('Processed Frame', frame)
+        with open('detected_times.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([f'Frame {e}', detected_time])
             
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -248,6 +251,7 @@ def processVideo(video_path):
     cv2.destroyAllWindows()
     
 
-# Example usage
+if os.path.exists('detected_times.csv'):
+    os.remove('detected_times.csv')
 video_path = 'data/clock.mp4'
 processVideo(video_path)
