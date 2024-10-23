@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-SHOW_MIDDLE_STEPS = False
+SHOW_MIDDLE_STEPS = True
 
 def getAngleFromCenter(line, _center):
     x1, y1, x2, y2 = line[0][0]
@@ -19,8 +19,11 @@ def showImage(d,i):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-image_path = 'data/clock.png'
+# image_path = 'data/clock.png'
+image_path = 'troublesome_frame.png'
 image = cv2.imread(image_path)
+if SHOW_MIDDLE_STEPS:
+    showImage('Input Image',image)
 
 # using HSV color space to isolate the clock
 hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -44,12 +47,29 @@ gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 # Convert the grayscale image to pure black and white
 _, black_and_white_image = cv2.threshold(gray_image, 70, 255, cv2.THRESH_BINARY)
 edges = cv2.Canny(black_and_white_image, 70, 150)
+if SHOW_MIDDLE_STEPS:
+    showImage('Edges detected', edges)
 contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+if SHOW_MIDDLE_STEPS:
+    contour_image = image.copy()
+    cv2.drawContours(contour_image, contours, -1, (0, 255, 0), 2)
+    showImage('All Contours', contour_image)
+
 clock_contour = max(contours, key=cv2.contourArea)
 # Find the center and radius of the clock face
 (x, y), radius = cv2.minEnclosingCircle(clock_contour)
+if SHOW_MIDDLE_STEPS:
+    print(f" clock_countor: {clock_contour}")
+    print(f" center: {x},{y}")
+    print(f" radius: {radius}")
 center = (int(x), int(y))
 radius = int(radius)
+
+if SHOW_MIDDLE_STEPS:
+    center = (int(479), int(269))
+    radius = int(217)
+    
 # print('Radius:', int(radius))
 if SHOW_MIDDLE_STEPS:
     cv2.circle(image, center, radius, (0, 0, 255), 2)
@@ -73,8 +93,34 @@ if SHOW_MIDDLE_STEPS:
 
 edges = cv2.Canny(red_isolated, 70, 150)
 lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
-# print(lines)
-# print(getAngleFromCenter(lines,center))
+
+if lines is None: # No lines detected?
+    for j in range(90,49,-10): 
+        # Strategy 2, make all pixels solid red and reduce the threshold to detect lines
+        red_isolated[np.where((red_isolated != [0, 0, 0]).all(axis=2))] = [0, 0, 255]
+        edges = cv2.Canny(red_isolated, 70, 150)
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=j, minLineLength=50, maxLineGap=10)
+        if SHOW_MIDDLE_STEPS:
+            print(f"Threshold: {j}, lines: {0 if lines is None else len(lines)}")
+        if lines is not None:
+            break
+    if lines is None: # No lines detected?
+        for j in range(1,3): 
+            # Strategy 1, dilate the red area to make the lines more visible
+            kernel = np.ones((3, 3), np.uint8)
+            red_isolated = cv2.dilate(red_isolated, kernel, iterations=j)
+            edges = cv2.Canny(red_isolated, 70, 150)
+            lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+            if SHOW_MIDDLE_STEPS:
+                showImage(f'Dilatation number {j}.',red_isolated)
+        if lines is None: # No lines yet detected? Debug time!
+            showImage('No lines detected on isolated red component.',red_isolated)
+            raise Exception("No lines detected on isolated red component.")
+
+if len(lines) < 1:
+    raise Exception(f"Less than 2 lines detected!! {0 if lines is None else len(lines)} lines found.")
+
+
 seconds = int((( getAngleFromCenter(lines,center) +90) % 360) / 6)
 
 if SHOW_MIDDLE_STEPS:
@@ -108,7 +154,7 @@ for line in lines:
     d2=np.sqrt( (x2-center[0])**2 + (y2-center[1])**2 )
     if (np.sqrt( (x1-x2)**2 + (y1-y2)**2 )) > 183:
         continue
-    ang=0
+    ang=400 # provide invalid angle as default
     # a line ahs 2 points
     if d1 < radius/2:   # point 1 is closer to the center
         x2+= -1*(x1-center[0]) # move the line to the center, 
@@ -128,14 +174,14 @@ for line in lines:
         elif len(angles) > 1:
             if angles[1]+dof > ang and angles[1]-dof < ang:
                 continue
-            elif ang != 0:
+            elif ang != 400:
                 print(f"Unexpected third angle!!! {ang}")
                 continue
-        elif ang != 0:
+        elif ang != 400:
             angles.append(ang)
             closest_lines.append(line)
             # print(line)
-    elif ang != 0:
+    elif ang != 400:
         angles.append(ang)
         closest_lines.append(line)
         # print(line)
