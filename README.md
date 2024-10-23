@@ -10,5 +10,5 @@ It's like a plane propeller with numbers around it, people can somehow tell you 
 - [X] Task 2-2
 - [ ] Task 2-3
   - [X]  Get time of every frame without crashing :)
-  - [ ]  Export time of each frame to .csv file
+  - [X]  Export time of each frame to .csv file
   - [ ]  Troubleshoot sudden minute or hour changes (add memory ?)
