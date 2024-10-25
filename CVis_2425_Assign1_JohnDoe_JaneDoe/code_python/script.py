@@ -12,7 +12,7 @@ def detect_clock(image_path):
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
-
+    cv2.imshow('Blur', gray)
 
 
     # Detect the clock face using HoughCircles
@@ -102,6 +102,7 @@ while True:
     minute = int(((minute_angle + 360) % 360) / 360 * 60) if minute_angle is not None else 0
     second = int(((second_angle + 360) % 360) / 360 * 60) if second_angle is not None else 0
     print(f"Detected time: {hour:02}:{minute:02}:{second:02}")
+    cv2.putText(img, f"Time: {hour:02d}:{minute:02d}:{second:02d}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
     # Display the edges and detected hands
     cv2.imshow('Edges', edges)
     cv2.imshow('Detected Clock Hands', img)
