@@ -60,7 +60,7 @@ clock_contour = max(contours, key=cv2.contourArea)
 # Find the center and radius of the clock face
 (x, y), radius = cv2.minEnclosingCircle(clock_contour)
 if SHOW_MIDDLE_STEPS:
-    print(f" clock_countor: {clock_contour}")
+    # print(f" clock_countor: {clock_contour}")
     print(f" center: {x},{y}")
     print(f" radius: {radius}")
 center = (int(x), int(y))
@@ -92,7 +92,8 @@ if SHOW_MIDDLE_STEPS:
     showImage('HSV Red component Isolated', red_isolated)
 
 edges = cv2.Canny(red_isolated, 70, 150)
-lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=50, maxLineGap=10)
+# threshold decreased to 80 due to frame 74
 
 if lines is None: # No lines detected?
     for j in range(90,49,-10): 
@@ -142,7 +143,8 @@ if SHOW_MIDDLE_STEPS:
     showImage('Black and white with seconds pointer removed.',black_and_white_image)
     
 edges = cv2.Canny(black_and_white_image, 70, 150)
-lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=50, minLineLength=30, maxLineGap=20)
+lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=30, maxLineGap=20)
+# threshold decreased to 
 closest_lines = []
 angles = []
 i=0
@@ -189,8 +191,15 @@ for line in lines:
 
 minutes = 0
 hours = 0
+if not closest_lines:
+    raise Exception("No valid lines detected for minute and hour hands!! Exported troublesome frame.")
+
 x1, y1, x2, y2 = closest_lines[0][0]
 d0=(np.sqrt( (x1-x2)**2 + (y1-y2)**2 ))
+if len(closest_lines) < 2:  # only one line detected? Hour and minutes must be overlapping
+    closest_lines.append(closest_lines[0])
+    if len(angles) < 2:
+        angles.append(angles[0])
 x1, y1, x2, y2 = closest_lines[1][0]
 d1=(np.sqrt( (x1-x2)**2 + (y1-y2)**2 ))
 if SHOW_MIDDLE_STEPS:
