@@ -325,17 +325,17 @@ def doStuff(image):
                 if angles[1]+dof > ang and angles[1]-dof < ang:
                     continue
                 elif ang != 400 and ang != minutes_ang:
-                    print(f"Unexpected third angle!!! {ang}")
-                    print(f"ang1: {angles[0]}, ang2: {angles[1]}")
-                    print(f"last_angle_hour: {last_angle_hour}, last_angle_min: {last_angle_min}")
-                    print(f"line: {line}")
-                    x1, y1, x2, y2 = line[0]
-                    img=image.copy()
-                    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    showImage('Detected Lines on Black and White Image', img)
-                    showImage('Black and white with seconds pointer removed.',black_and_white_image)
-                    logData(image_input)
-                    raise Exception("Unexpected third angle detected!! Exported troublesome frame.")
+                    # print(f"Unexpected third angle!!! {ang}")
+                    # print(f"ang1: {angles[0]}, ang2: {angles[1]}")
+                    # print(f"last_angle_hour: {last_angle_hour}, last_angle_min: {last_angle_min}")
+                    # print(f"line: {line}")
+                    # x1, y1, x2, y2 = line[0]
+                    # img=image.copy()
+                    # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    # showImage('Detected Lines on Black and White Image', img)
+                    # showImage('Black and white with seconds pointer removed.',black_and_white_image)
+                    # logData(image_input)
+                    # raise Exception("Unexpected third angle detected!! Exported troublesome frame.")
                     continue
             elif ang != 400 and ang != minutes_ang:
                 if is_hm_angle_expected(ang):
