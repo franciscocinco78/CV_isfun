@@ -9,6 +9,7 @@ with open(csv_file_path, mode='r', newline='') as file:
     
     previous_time = None
     hour_failures = 0
+    hour_invalid_transitions = 0
     minute_failures = 0
     second_failures = 0
 
@@ -21,15 +22,21 @@ with open(csv_file_path, mode='r', newline='') as file:
             if not (((curr_h == prev_h or curr_h == prev_h+1) and (curr_m == prev_m or curr_m == prev_m+1) and (curr_s == prev_s or curr_s == prev_s+1))):
                 # print(f"Failure detected:\nPrevious: {previous_time}\n Current: {current_time}")
                 
-                if curr_h != prev_h or curr_h != prev_h+1:
+                if curr_h != prev_h and curr_h != prev_h+1 and not (curr_h == 0 and prev_h == 11):
                     hour_failures += 1
-                elif curr_m != prev_m or curr_m != prev_m+1:
-                    minute_failures += 1
-                elif curr_s != prev_s or curr_s != prev_s+1:
-                    second_failures += 1
+                if curr_m != prev_m and curr_m != prev_m+1:
+                    if (curr_m == 0 and prev_m != 59):
+                        minute_failures += 1
+                if curr_s != prev_s and curr_s >= prev_s+3: # considering 3s jump tolerance
+                    if not (curr_s < 3 and prev_s > 57):
+                        second_failures += 1
+                        # print(f"Failure detected at row {csv_reader.line_num}:\nPrevious: {previous_time}\nCurrent: {current_time}")
+                if curr_h==prev_h+1 and (curr_m!=0 or prev_m!=59):
+                    hour_invalid_transitions += 1
 
         previous_time = current_time
 
-print(f"Hour failures: {hour_failures}")
+print(f"Hour invalid transitions: {hour_invalid_transitions}")
+print(f"  Hour failures: {hour_failures}")
 print(f"Minute failures: {minute_failures}")
 print(f"Second failures: {second_failures}")

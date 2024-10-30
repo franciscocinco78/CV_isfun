@@ -98,17 +98,6 @@ cv2.destroyAllWindows()
 gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 _, bw_image = cv2.threshold(gray_image, 70, 255, cv2.THRESH_BINARY)
 
-# # Create a mask with the larger circle
-# mask = cv2.circle(np.zeros_like(bw_image), center1, radius2, 255, -1) # .
-# # Subtract the smaller circle from the mask
-# mask = cv2.circle(mask, center1, radius1, 0, -1) # O
-# cropped_bw_image = cv2.bitwise_and(bw_image, bw_image, mask=mask)
-
-# # Draw a full white circle with the radius of the small circle
-# white_circle = np.zeros_like(bw_image) # full black image
-# cv2.circle(white_circle, center1, radius1, 255, -1) # draw white circle
-# outer_mask = cv2.circle(np.ones_like(bw_image) * 255, center1, radius2-2, 0, -1)
-
 # # Apply the mask to the cropped binary image
 # cropped_bw_image = cv2.bitwise_or(cropped_bw_image, cv2.bitwise_or(outer_mask, white_circle))
 cropped_bw_image = get_arc(bw_image, center1, radius1, radius2)
@@ -123,13 +112,6 @@ image = cv2.imread('troublesome_frame.png')
 gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 _, bw_image = cv2.threshold(gray_image, 70, 255, cv2.THRESH_BINARY)
 
-# mask = cv2.circle(np.zeros_like(bw_image), center1, radius2, 255, -1)
-# mask = cv2.circle(mask, center1, radius1, 0, -1)
-# cropped_bw_image2 = cv2.bitwise_and(bw_image, bw_image, mask=mask)
-
-# # Make the area without content white
-# white_background = np.ones_like(cropped_bw_image2) * 255
-
 cv2.imshow('Second bw Image', bw_image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
@@ -143,38 +125,6 @@ cv2.destroyAllWindows()
 
 print(get_current_minute_pointer_angle(cropped_bw_image, cropped_bw_image2, image, center1))
 
-# # Find differences between the two cropped binary images
-# difference = cv2.absdiff(cropped_bw_image, cropped_bw_image2)
-
-# # Remove single pixels without neighbors
-# kernel = np.ones((3, 3), np.uint8)
-# difference = cv2.morphologyEx(difference, cv2.MORPH_OPEN, kernel)
-
-# # Find contours of the objects in the difference image
-# contours, _ = cv2.findContours(difference, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-# # Draw contours on the original image
-# highlighted_image = image.copy()
-# cv2.drawContours(highlighted_image, contours, -1, (0, 0, 255), 2)  # Red contours with thickness 2
-# # Find and print the center of mass of each object
-# for contour in contours:
-#     M = cv2.moments(contour)
-#     if M["m00"] != 0:
-#         cX = int(M["m10"] / M["m00"])
-#         cY = int(M["m01"] / M["m00"])
-#         angle = np.degrees(np.arctan2(cY - center1[1], cX - center1[0]))
-#         print(f"Center of mass: ({cX}, {cY}), angle: {angle:.1f}")
-#         # print(f"Center of mass: ({cX}, {cY})")
-#         cv2.circle(highlighted_image, (cX, cY), 5, (255, 0, 0), -1)  # Draw center of mass
-
-# # Display the highlighted image
-# cv2.imshow('Highlighted Objects', highlighted_image)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
-
-# cv2.imshow('Difference Image', difference)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
 newRadius1 = 100
 mask = cv2.circle(np.zeros_like(bw_image), center1, newRadius1, 255, -1) # .
 
