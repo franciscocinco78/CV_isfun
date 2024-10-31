@@ -14,7 +14,7 @@ with open(csv_file_path, mode='r', newline='') as file:
     second_failures = 0
 
     for row in csv_reader:
-        current_time = row[1]  # Assuming the time is in the second column
+        current_time = row[1]  # Time is in the second column
         if previous_time:
             prev_h, prev_m, prev_s = map(int, previous_time.split(':'))
             curr_h, curr_m, curr_s = map(int, current_time.split(':'))
@@ -30,13 +30,13 @@ with open(csv_file_path, mode='r', newline='') as file:
                 if curr_s != prev_s and curr_s >= prev_s+3: # considering 3s jump tolerance
                     if not (curr_s < 3 and prev_s > 57):
                         second_failures += 1
-                        # print(f"Failure detected at row {csv_reader.line_num}:\nPrevious: {previous_time}\nCurrent: {current_time}")
+                        print(f"Failure detected at row {csv_reader.line_num}:\nPrevious: {previous_time}\nCurrent: {current_time}")
                 if curr_h==prev_h+1 and (curr_m!=0 or prev_m!=59):
                     hour_invalid_transitions += 1
-
+                    print(csv_reader.line_num)
         previous_time = current_time
 
 print(f"Hour invalid transitions: {hour_invalid_transitions}")
-print(f"  Hour failures: {hour_failures}")
-print(f"Minute failures: {minute_failures}")
-print(f"Second failures: {second_failures}")
+print(f"  Hour invalid increment: {hour_failures}")
+print(f"Minute invalid increment: {minute_failures}")
+print(f"Second invalid increment: {second_failures}")

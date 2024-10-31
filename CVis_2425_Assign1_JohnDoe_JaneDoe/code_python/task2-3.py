@@ -29,12 +29,7 @@ def logData(img,name='troublesome_frame.png'):
     if not DEBUG_FRAME:
         cv2.imwrite(name, img)
 
-# If current time is consistent save the global vars.
-# If not, increment the error count
-# @todo implement this functionallity
-def store_last_angle_hour_min(angles0, angles1, hh, mm, ss):
-    pass
-
+# @todo remove this function and respective calls.
 def is_hm_angle_expected(ang):
     global last_angle_min, last_angle_hour
     if last_angle_min==400 and last_angle_hour==400:
@@ -52,15 +47,38 @@ def is_hm_angle_expected(ang):
         return False
         
 # Function to get the angle of a line with respect to the center of the clock face
-def getAngleFromCenter(line, _center):
-    x1, y1, x2, y2 = line[0][0]
-    dist1 = np.sqrt((x1 - _center[0])**2 + (y1 - _center[1])**2)
-    dist2 = np.sqrt((x2 - _center[0])**2 + (y2 - _center[1])**2)
-    if dist1 > dist2:
-        farthest_point = (x1, y1)
-    else:
-        farthest_point = (x2, y2)
-    angle = np.degrees(np.arctan2(farthest_point[1] - _center[1], farthest_point[0] - _center[0]))
+def getAngleFromCenter(lines, cc):
+    global last_angle_sec
+    angle = 400
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        dist1 = np.sqrt((x1 - cc[0])**2 + (y1 - cc[1])**2)
+        dist2 = np.sqrt((x2 - cc[0])**2 + (y2 - cc[1])**2)
+        if dist1 > dist2:
+            farthest_point = (x1, y1)
+        else:
+            farthest_point = (x2, y2)
+        ang = np.degrees(np.arctan2(farthest_point[1] - cc[1], farthest_point[0] - cc[0]))+90
+        if ang < 0:
+            ang = 360 + ang    
+        if angle != 400 and ang < last_angle_sec+15:
+            angle = ang
+        else:
+            angle = ang
+        if SHOW_MIDDLE_STEPS:
+            print('Parsing ang:', ang, ', for line: ', line, ', x1: ',x1, ', y1: ',y1,', x2: ',x2, ', y2:',y2, end='; ')
+    if SHOW_MIDDLE_STEPS:
+        print()
+    # x1, y1, x2, y2 = line[0][0]
+    # dist1 = np.sqrt((x1 - _center[0])**2 + (y1 - _center[1])**2)
+    # dist2 = np.sqrt((x2 - _center[0])**2 + (y2 - _center[1])**2)
+    # if dist1 > dist2:
+    #     farthest_point = (x1, y1)
+    # else:
+    #     farthest_point = (x2, y2)
+    # angle = np.degrees(np.arctan2(farthest_point[1] - _center[1], farthest_point[0] - _center[0]))
+    # return angle
+    last_angle_sec = angle
     return angle
 
 # bw_img: binary image
@@ -253,9 +271,13 @@ def doStuff(image):
 
     edges = cv2.Canny(red_isolated, 70, 150)
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=50, maxLineGap=10)
+    if SHOW_MIDDLE_STEPS:
+        if lines is None:
+            print("Isolated red (seconds pointer) -> No lines detected at first.")
+        showImage('Isolated red (seconds pointer) -> Edges.',edges)
     if lines is None:
         for j in range(90,49,-10): # No lines detected?
-            # Strategy 2, make all pixels solid red and reduce the threshold to detect lines
+            # Strategy 1, make all pixels solid red and reduce the threshold to detect lines
             red_isolated[np.where((red_isolated != [0, 0, 0]).all(axis=2))] = [0, 0, 255]
             edges = cv2.Canny(red_isolated, 70, 150)
             lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=j, minLineLength=50, maxLineGap=10)
@@ -264,8 +286,10 @@ def doStuff(image):
             if lines is not None:
                 break
         if lines is None:
+            if SHOW_MIDDLE_STEPS:
+                print("Isolated red (seconds pointer) -> No lines detected at 2nd iteration.")
             for j in range(1,3): # No lines detected?
-                # Strategy 1, dilate the red area to make the lines more visible
+                # Strategy 2, dilate the red area to make the lines more visible
                 kernel = np.ones((3, 3), np.uint8)
                 red_isolated = cv2.dilate(red_isolated, kernel, iterations=j)
                 edges = cv2.Canny(red_isolated, 70, 150)
@@ -276,8 +300,13 @@ def doStuff(image):
                 showImage('No lines detected on isolated red component.',red_isolated)
                 logData(image_input)
                 raise Exception("No lines detected on isolated red component.")
-    
-    seconds = int((( getAngleFromCenter(lines,center) +90) % 360) / 6)
+    if SHOW_MIDDLE_STEPS:
+        img = image.copy()
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        showImage('Detected Lines on Isolated Red Component', img)
+    seconds = int((( getAngleFromCenter(lines,center) ) % 360) / 6)
 
     if SHOW_MIDDLE_STEPS:
         red_isolated_demo = red_isolated.copy()
@@ -285,7 +314,7 @@ def doStuff(image):
             for line in lines:
                 x1, y1, x2, y2 = line[0]
                 cv2.line(red_isolated_demo, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        print(lines)
+        print(f"Coordinates of detected lines in seconds pointer: {lines}")
         showImage('Line detected on isolated red component, shown in green.',red_isolated_demo)
         
     #######################################################################################
@@ -401,21 +430,21 @@ def doStuff(image):
         if len(angles) > 0: # already detected angles?
             # Minutes pointer is faster than hours, before 7 hours, minutes pointer is the first to be detected (lower angle),
             # after 6 hours, hours pointer is the first to be detected (lower angle). 
-            if (angles[0]+dof > ang and angles[0]-dof < ang) and ang > angles[0] and last_hour<6: # this angle is about the same as the existing one, but higher?
+            if (angles[0]+dof > ang and angles[0]-dof < ang) and ang > angles[0]: # and last_hour<6: # this angle is about the same as the existing one, but higher?
                 angles[0] = ang # replace angle
                 continue # finish iteration
-            elif (angles[0]+dof > ang and angles[0]-dof < ang) and ang < angles[0] and last_hour>=6: # this angle is about the same as the existing one, but lower?
-                angles[0] = ang # replace angle
-                continue # finish iteration
+            # elif (angles[0]+dof > ang and angles[0]-dof < ang) and ang < angles[0] and last_hour>=6: # this angle is about the same as the existing one, but lower?
+            #     angles[0] = ang # replace angle
+            #     continue # finish iteration
             elif angles[0]+dof > ang and angles[0]-dof < ang: # this angle is about the same as the existing one?
                 continue # do not add it
             elif len(angles) > 1:
                 if (angles[1]+dof > ang and angles[1]-dof < ang) and ang > angles[1] and last_hour<6: # this angle is about the same as the existing one, but higher?
                     angles[1] = ang # replace angle
                     continue # finish iteration
-                elif (angles[1]+dof > ang and angles[1]-dof < ang) and ang < angles[1]: # this angle is about the same as the existing one, but higher?
-                    angles[1] = ang # replace angle
-                    continue # finish iteration
+                # elif (angles[1]+dof > ang and angles[1]-dof < ang) and ang < angles[1]: # this angle is about the same as the existing one, but higher?
+                #     angles[1] = ang # replace angle
+                #     continue # finish iteration
                 if angles[1]+dof > ang and angles[1]-dof < ang:
                     continue
                 elif ang != 400 and ang != minutes_ang:
@@ -501,13 +530,13 @@ def doStuff(image):
                 print(f"Minutes angle: {minutes_ang:.1f}, hours angle: {angles[0]:.1f}, hour: {hours}, len(angles): {len(angles)}")
         # print(f"Hours angle: {angles[0]:.1f}, hour: {hours}")
     global last_min
-    if hours == last_hour+1 and minutes != 59 and minutes > 56: # smart-fix 'clock transitions
+    if hours == last_hour+1 and minutes > 56: # smart-fix 'clock transitions
         hours -= 1
     elif hours == last_hour-1 and minutes < 5:
         hours +=1
     elif hours == last_hour-1 and (last_angle_hour+1 > hours_angle > last_angle_hour-1): # allow 1 deg error
         hours +=1
-    elif hours == 0 and last_hour == 11 and minutes != 59 and minutes > 56:
+    elif hours == 0 and last_hour == 11 and minutes > 56:
         hours = 11
     
     if hours != last_hour and hours != last_hour+1:
@@ -554,15 +583,17 @@ def doStuff(image):
 
 def processVideo(video_path):
     cap = cv2.VideoCapture(video_path)
-    e=0
+    e=1
+    global SHOW_MIDDLE_STEPS 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret: # Frame not OK ?
             break
         print(f"-> Processing frame {e}")
-        # if e==1638:
-        #     global SHOW_MIDDLE_STEPS 
+        # if e==202:
         #     SHOW_MIDDLE_STEPS = True
+        # else:
+        #     SHOW_MIDDLE_STEPS = False
         detected_time = doStuff(frame)
         cv2.putText(frame, detected_time, (100, 100), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
