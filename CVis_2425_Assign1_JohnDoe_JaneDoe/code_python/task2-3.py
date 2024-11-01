@@ -45,10 +45,14 @@ def is_hm_angle_expected(ang):
             return True # expected angle
     else:
         return False
-        
+
+_tempvar = 0
 # Function to get the angle of a line with respect to the center of the clock face
 def getAngleFromCenter(lines, cc):
-    global last_angle_sec
+    global last_angle_sec, _tempvar
+    if _tempvar == 1656:
+        print('here')
+    _tempvar += 1
     angle = 400
     for line in lines:
         x1, y1, x2, y2 = line[0]
@@ -61,9 +65,9 @@ def getAngleFromCenter(lines, cc):
         ang = np.degrees(np.arctan2(farthest_point[1] - cc[1], farthest_point[0] - cc[0]))+90
         if ang < 0:
             ang = 360 + ang    
-        if angle != 400 and ang < last_angle_sec+15:
+        if angle != 400 and ((last_angle_sec-15 < ang < last_angle_sec+15) or (last_angle_sec+15 > 360 and ang < 15)):
             angle = ang
-        else:
+        elif angle == 400:
             angle = ang
         if SHOW_MIDDLE_STEPS:
             print('Parsing ang:', ang, ', for line: ', line, ', x1: ',x1, ', y1: ',y1,', x2: ',x2, ', y2:',y2, end='; ')
@@ -249,8 +253,8 @@ def doStuff(image):
         radius = int(217)
         
     if SHOW_MIDDLE_STEPS:
-        cv2.circle(image, center, radius, (0, 0, 255), 2)
         cv2.circle(image, center, 5, (0, 0, 255), -1)
+        cv2.circle(image, center, radius, (0, 0, 255), 2)
         showImage('Clock face with center and outer contour highlighted in red',image)
 
     ###### -> Get seconds pointer by isolating reds
@@ -270,7 +274,7 @@ def doStuff(image):
         showImage('HSV Red component Isolated', red_isolated)
 
     edges = cv2.Canny(red_isolated, 70, 150)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=80, minLineLength=50, maxLineGap=10)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=55, minLineLength=40, maxLineGap=10)
     if SHOW_MIDDLE_STEPS:
         if lines is None:
             print("Isolated red (seconds pointer) -> No lines detected at first.")
@@ -297,7 +301,7 @@ def doStuff(image):
                 if SHOW_MIDDLE_STEPS:
                     showImage(f'Dilatation number {j}.',red_isolated)
             if lines is None: # No lines yet detected? Debug time!
-                showImage('No lines detected on isolated red component.',red_isolated)
+                showImage('(Seconds pointer) -> No lines detected on isolated red component.',red_isolated)
                 logData(image_input)
                 raise Exception("No lines detected on isolated red component.")
     if SHOW_MIDDLE_STEPS:
@@ -305,17 +309,18 @@ def doStuff(image):
         for line in lines:
             x1, y1, x2, y2 = line[0]
             cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        showImage('Detected Lines on Isolated Red Component', img)
+        showImage('(Seconds pointer) -> Detected Lines on Isolated Red Component', img)
     seconds = int((( getAngleFromCenter(lines,center) ) % 360) / 6)
 
     if SHOW_MIDDLE_STEPS:
+        print("Seconds pointer angle:", seconds)
         red_isolated_demo = red_isolated.copy()
         if lines is not None:
             for line in lines:
                 x1, y1, x2, y2 = line[0]
                 cv2.line(red_isolated_demo, (x1, y1), (x2, y2), (0, 255, 0), 2)
         print(f"Coordinates of detected lines in seconds pointer: {lines}")
-        showImage('Line detected on isolated red component, shown in green.',red_isolated_demo)
+        showImage('(Seconds pointer) -> Line detected on isolated red component, shown in green.',red_isolated_demo)
         
     #######################################################################################
     ###### Minutes pointer:
@@ -583,15 +588,16 @@ def doStuff(image):
 
 def processVideo(video_path):
     cap = cv2.VideoCapture(video_path)
-    e=1
+    e=0
     global SHOW_MIDDLE_STEPS 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret: # Frame not OK ?
             break
         print(f"-> Processing frame {e}")
-        # if e==202:
+        # if e==1656:
         #     SHOW_MIDDLE_STEPS = True
+        #     logData(frame)
         # else:
         #     SHOW_MIDDLE_STEPS = False
         detected_time = doStuff(frame)

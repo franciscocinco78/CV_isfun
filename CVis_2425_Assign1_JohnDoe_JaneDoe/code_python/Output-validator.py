@@ -27,7 +27,7 @@ with open(csv_file_path, mode='r', newline='') as file:
                 if curr_m != prev_m and curr_m != prev_m+1:
                     if (curr_m == 0 and prev_m != 59):
                         minute_failures += 1
-                if curr_s != prev_s and curr_s >= prev_s+3: # considering 3s jump tolerance
+                if curr_s != prev_s and  (curr_s >= prev_s+3 or curr_s < prev_s): # considering 3s jump tolerance
                     if not (curr_s < 3 and prev_s > 57):
                         second_failures += 1
                         print(f"Failure detected at row {csv_reader.line_num}:\nPrevious: {previous_time}\nCurrent: {current_time}")
