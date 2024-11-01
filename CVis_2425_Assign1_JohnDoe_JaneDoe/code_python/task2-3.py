@@ -2,12 +2,9 @@ import cv2
 import numpy as np
 import csv
 import os
-import tkinter as tk
-from tkinter import messagebox
 
 # Set to True to show intermediate steps of the process, and show extra information
 SHOW_MIDDLE_STEPS = False
-DEBUG_FRAME = False
 
 # center of the clock face, will not be calculated each frame, as it is assumed to be constant
 center = None 
@@ -26,33 +23,11 @@ def logData(img,name='troublesome_frame.png'):
     global center, radius
     print(f"center: {center}")
     print(f"radius: {radius}")
-    if not DEBUG_FRAME:
-        cv2.imwrite(name, img)
 
-# @todo remove this function and respective calls.
-def is_hm_angle_expected(ang):
-    global last_angle_min, last_angle_hour
-    if last_angle_min==400 and last_angle_hour==400:
-        return True
-    mm=last_angle_min
-    hh=last_angle_hour
-    if hh +15 > 360:
-        hh=0
-    if mm +15 > 360:
-        mm=0
-    if ((ang < hh + 15 and ang > hh - 10) or 
-        (ang < mm + 15 and ang > mm - 10)):
-            return True # expected angle
-    else:
-        return False
-
-_tempvar = 0
 # Function to get the angle of a line with respect to the center of the clock face
+# Only used to get angle of seconds pointer
 def getAngleFromCenter(lines, cc):
-    global last_angle_sec, _tempvar
-    if _tempvar == 1656:
-        print('here')
-    _tempvar += 1
+    global last_angle_sec
     angle = 400
     for line in lines:
         x1, y1, x2, y2 = line[0]
@@ -108,6 +83,7 @@ def get_arc(bw_img, cc, small_radius, large_radius):
 # orig_img: original image
 # cc: center of the clock
 # red_isolated: seconds pointer isolated, used to remove it from the 'final' difference image
+# @description: this function works with the extracted outer arcs from current and previous frames to detect the minutes pointer angle
 def get_current_minute_pointer_angle(cc_img1, cc_img2, orig_img, cc, red_isolated):
     difference = cv2.absdiff(cc_img1, cc_img2)
     SHOW_ALL = SHOW_MIDDLE_STEPS
@@ -119,25 +95,6 @@ def get_current_minute_pointer_angle(cc_img1, cc_img2, orig_img, cc, red_isolate
     # Remove single pixels without neighbors
     kernel = np.ones((3, 3), np.uint8)
     difference = cv2.morphologyEx(difference, cv2.MORPH_OPEN, kernel)
-    
-    # if SHOW_ALL:
-    #     showImage('get minutes -> Difference clean', difference)
-    # # Remove the seconds pointer from the difference image
-    # gg = cv2.cvtColor(red_isolated, cv2.COLOR_BGR2GRAY)
-    # # Convert the grayscale image to pure black and white, ignore returned threshold value
-    # _, seconds_bw = cv2.threshold(gg, 70, 255, cv2.THRESH_BINARY)
-    # # Dilate the seconds_bw image by 2 pixels
-    # kernel = np.ones((3, 3), np.uint8)
-    # seconds_bw = cv2.dilate(seconds_bw, kernel, iterations=3) # 3 iterations to fully remove traces of seconds pointer
-    # # This may cause innacurate minutes tracking in future, must be tested.
-
-    # if SHOW_ALL:
-    #     cv2.imshow('get minutes -> Difference with seconds pointer', difference)
-    # # Overlay the seconds_bw content as black pixels on the difference image
-    # difference[seconds_bw == 255] = 0
-    # if SHOW_ALL:
-    #     showImage('get minutes -> Difference without seconds pointer', difference)
-    #     showImage('get minutes -> input red_isolated', red_isolated)
     
     # Find contours of the objects in the difference image
     contours, _ = cv2.findContours(difference, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -176,20 +133,20 @@ def get_current_minute_pointer_angle(cc_img1, cc_img2, orig_img, cc, red_isolate
                 closest_angle = min(angles_copy, key=lambda x: abs(x - max(a)))
                 return (closest_angle + max(a)) / 2
         
-        angles_copy = angles.copy()
-        angles_copy.pop(angles_copy.index(max(angles)))
-        closest_angle = min(angles_copy, key=lambda x: abs(x - max(angles))) # closest angle to the max
+        angles_copy = angles.copy() # copy array of detected angles
+        angles_copy.pop(angles_copy.index(max(angles))) # rm max angle from copy
+        closest_angle = min(angles_copy, key=lambda x: abs(x - max(angles))) # get closest angle to the max
         if SHOW_ALL:
             print(f"Angles: {angles}, max: {max(angles)}, min: {min(angles)}, closest: {closest_angle}")
-        if closest_angle > (max(angles)-3):   # se os angulos forem proximos
+        if closest_angle > (max(angles)-3):   # if angles are close to each other, return the average
             if SHOW_ALL:
                 print("Returning average angle for minutes pointer")
-            return (closest_angle + max(angles)) / 2 # devolver a media
-        else:
+            return (closest_angle + max(angles)) / 2 # return the average
+        else:   # else, just return the maximum angle
             if SHOW_ALL:
                 print("Returning max angle for minutes pointer")
             return max(angles)
-    else:
+    else:   # if ony one angle is found, return it
         return angles[0]
 
 def showImage(d,i):
@@ -247,11 +204,7 @@ def doStuff(image):
         (x, y), radius = cv2.minEnclosingCircle(clock_contour)
         center = (int(x), int(y))
         radius = int(radius)
-        
-    if DEBUG_FRAME:
-        center = (int(479), int(269))
-        radius = int(217)
-        
+                
     if SHOW_MIDDLE_STEPS:
         cv2.circle(image, center, 5, (0, 0, 255), -1)
         cv2.circle(image, center, radius, (0, 0, 255), 2)
@@ -341,9 +294,6 @@ def doStuff(image):
         minutes_ang = get_current_minute_pointer_angle(last_arc, current_arc, image, center, red_isolated)
         # print(minutes_ang)
         
-        
-    if DEBUG_FRAME:
-        minutes_ang = 197.4656965024109
     # cv2.imshow('BW image before subtraction', black_and_white_image)
     
     # Overlay the red isolated content as white pixels on the black and white image
@@ -355,7 +305,7 @@ def doStuff(image):
     
     if True: # last_arc is not None: # 
         # remove center and numbers, keeping only part of the pointers
-        # ~~~~-> only executed if minutes angle is already known. (min & hour pointers will have same length in the cropped img)~~~~
+        # ~~[-> only executed if minutes angle is already known. (min & hour pointers will have same length in the cropped img)]~~
         # always crop the image.
         r1=100
         mask = cv2.circle(np.zeros_like(black_and_white_image), center, r1, 255, -1)
@@ -375,7 +325,6 @@ def doStuff(image):
         showImage('Current arc', current_arc)
     
     edges = cv2.Canny(black_and_white_image, 70, 150)
-    
     lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=40, minLineLength=50, maxLineGap=20)
     
     # if SHOW_MIDDLE_STEPS:
@@ -399,7 +348,7 @@ def doStuff(image):
     global last_hour
     for line in lines:
         x1, y1, x2, y2 = line[0]
-        # h = sqrt( c^2 + c1^2)
+        ## h = sqrt( c^2 + c1^2)
         d1=np.sqrt( (x1-center[0])**2 + (y1-center[1])**2 )
         d2=np.sqrt( (x2-center[0])**2 + (y2-center[1])**2 )
         if (np.sqrt( (x1-x2)**2 + (y1-y2)**2 )) > 183: # ignore lines too long
@@ -424,7 +373,6 @@ def doStuff(image):
             ang += 360
         if SHOW_MIDDLE_STEPS:
             print('Parsing ang:', ang, ', for line: ', line, ', x1: ',x1, ', y1: ',y1,', x2: ',x2, ', y2:',y2, end='; ')
-            
             img=image_input.copy()
             cv2.line(img, (line[0][0], line[0][1]), (line[0][2], line[0][3]), (0, 255, 0), 2)
             showImage('Processing this line', img)
@@ -435,6 +383,8 @@ def doStuff(image):
         if len(angles) > 0: # already detected angles?
             # Minutes pointer is faster than hours, before 7 hours, minutes pointer is the first to be detected (lower angle),
             # after 6 hours, hours pointer is the first to be detected (lower angle). 
+            # Previous consideration was discarded in favor of reducing the degrees of freedom (dof) and ensuring hour doesnt transition until minutes pass by zero. The zero-pass is checked after the present for cycle.
+            # A higher angle is always prioritized due to clockwise pointer rotation (it will provide the most accurate pointer position).
             if (angles[0]+dof > ang and angles[0]-dof < ang) and ang > angles[0]: # and last_hour<6: # this angle is about the same as the existing one, but higher?
                 angles[0] = ang # replace angle
                 continue # finish iteration
@@ -444,10 +394,10 @@ def doStuff(image):
             elif angles[0]+dof > ang and angles[0]-dof < ang: # this angle is about the same as the existing one?
                 continue # do not add it
             elif len(angles) > 1:
-                if (angles[1]+dof > ang and angles[1]-dof < ang) and ang > angles[1] and last_hour<6: # this angle is about the same as the existing one, but higher?
+                if (angles[1]+dof > ang and angles[1]-dof < ang) and ang > angles[1]: # and last_hour<6: # this angle is about the same as the existing one, but higher?
                     angles[1] = ang # replace angle
                     continue # finish iteration
-                # elif (angles[1]+dof > ang and angles[1]-dof < ang) and ang < angles[1]: # this angle is about the same as the existing one, but higher?
+                # elif (angles[1]+dof > ang and angles[1]-dof < ang) and ang < angles[1]: # this angle is about the same as the existing one, but lower?
                 #     angles[1] = ang # replace angle
                 #     continue # finish iteration
                 if angles[1]+dof > ang and angles[1]-dof < ang:
@@ -465,13 +415,13 @@ def doStuff(image):
                     # logData(image_input)
                     # raise Exception("Unexpected third angle detected!! Exported troublesome frame.")
                     continue
-            elif ang != 400 and ( not (minutes_ang-dof < ang < minutes_ang + dof)) and minutes_ang+dof < 360 and minutes_ang-dof > 0: # ensure it is not the minutes angle
+            elif ang != 400 and ( not (minutes_ang-dof < ang < minutes_ang + dof)) and minutes_ang+dof < 360 and minutes_ang-dof > 0: # ensure it is not the minutes angle. 
                 angles.append(ang)
                 closest_lines.append(line)
-            elif ang != 400 and ( not (minutes_ang-dof < ang < (minutes_ang +dof -360)) and minutes_ang+dof > 360): #ensure it is not the minutes angle
+            elif ang != 400 and ( not (minutes_ang-dof < ang < (minutes_ang +dof -360)) and minutes_ang+dof > 360): #ensure it is not the minutes angle. In this case the minutes pointer is expected to be reaching 00
                 angles.append(ang)
                 closest_lines.append(line)
-            elif ang != 400 and ( not (minutes_ang-dof+360 < ang < (minutes_ang +dof+360)) and minutes_ang-dof < 0): # ang=359.0, min_ang=1.0
+            elif ang != 400 and ( not (minutes_ang-dof+360 < ang < (minutes_ang +dof+360)) and minutes_ang-dof < 0): # ang=359.0, minutes_ang=1.0 In this case the minutes pointer is expected to be right after (or at) 00
                 angles.append(ang)
                 closest_lines.append(line)
         elif ang != 400: # no special checks, first found angle can be any
@@ -481,17 +431,17 @@ def doStuff(image):
     # print(angles)
     minutes = 0
     hours = 0
-    hours_angle = 400
+    hours_angle = 400 # default invalid angle is set on purpose
     if SHOW_MIDDLE_STEPS:
-        print(f"Hours Angles: {angles}")
+        print(f"Hours Angles: {angles}") # angles contains angles for hour pointer, and also minutes on first frame
         print(f"Minutes angle: {minutes_ang}")
-    if minutes_ang == -1:
+    if minutes_ang == -1: # This only executes in the first frame. Minutes pointer is expected to be longer than hours pointer.
         x1, y1, x2, y2 = closest_lines[0][0]
-        d0=(np.sqrt( (x1-x2)**2 + (y1-y2)**2 ))
+        d0=(np.sqrt( (x1-x2)**2 + (y1-y2)**2 )) # calculate length
         if len(closest_lines) < 2:  # only one line detected? Hour and minutes must be overlapping
             closest_lines.append(closest_lines[0])
             if len(angles) < 2:
-                angles.append(angles[0])
+                angles.append(angles[0])    # duplicate angle value
         x1, y1, x2, y2 = closest_lines[1][0]
         d1=(np.sqrt( (x1-x2)**2 + (y1-y2)**2 ))
         if SHOW_MIDDLE_STEPS:
@@ -508,9 +458,8 @@ def doStuff(image):
             # hours = int((angles[0] % 360) / 30)
             hours_angle = angles[0]
         hours = int((hours_angle % 360) / 30)
-    else:
+    else:   # expected to execute from second frame onwards
         minutes = int((minutes_ang % 360) / 6)
-        
         if len(angles) < 1:
             print('Minuts angle: ', minutes_ang)
             logData(image_input)
@@ -537,11 +486,11 @@ def doStuff(image):
     global last_min
     if hours == last_hour+1 and minutes > 56: # smart-fix 'clock transitions
         hours -= 1
-    elif hours == last_hour-1 and minutes < 5:
+    elif hours == last_hour-1 and minutes < 5: # measurement error caused hours to decrease? This only has effect if the minutes pointer is close to 00
         hours +=1
-    elif hours == last_hour-1 and (last_angle_hour+1 > hours_angle > last_angle_hour-1): # allow 1 deg error
+    elif hours == last_hour-1 and (last_angle_hour+1 > hours_angle > last_angle_hour-1): # Random 1 deg error caused horus to decrement? Fix it just in case..
         hours +=1
-    elif hours == 0 and last_hour == 11 and minutes > 56:
+    elif hours == 0 and last_hour == 11 and minutes > 56: # Do not allow hours to increment before minutes pointer reaches 00
         hours = 11
     
     if hours != last_hour and hours != last_hour+1:
@@ -560,14 +509,14 @@ def doStuff(image):
         last_hour = hours
         last_angle_hour = hours_angle
     
-    if minutes == last_min-1:
-        minutes +=1
+    if minutes == last_min-1: # random minute decrement ?
+        minutes +=1 # fix it
     if (minutes != last_min and minutes != last_min+1 and last_min != 59) or (minutes == 0 and minutes != last_min and last_min != 59):
         print(f"Minutes: {minutes}, minutes angle: {minutes_ang:.1f}, last_angle_min: {last_angle_min:.1f}")
         logData(image_input)
         print(f"Minutes: {minutes}, last_min: {last_min}")
         raise Exception("Inconsistent minutes detected!! Exported troublesome frame.")
-    else:
+    else:   # update previous state variables
         last_min = minutes
         last_angle_min = minutes_ang
         
@@ -613,18 +562,10 @@ def processVideo(video_path):
         e=e+1
     cap.release()
     cv2.destroyAllWindows()
-    
 
-if DEBUG_FRAME  ==  False:  # Normal execution
-    if os.path.exists('detected_times.csv'):
-        os.remove('detected_times.csv')
-    video_path = 'data/clock.mp4'
-    processVideo(video_path)
-else:   # Debug frame
-    SHOW_MIDDLE_STEPS = True
-    image_path = 'troublesome_frame.png'
-    image = cv2.imread(image_path)
-    detected_time = doStuff(image)
-    print(f"Detected time: {detected_time}")
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+########################################################################################
+
+if os.path.exists('detected_times.csv'):
+    os.remove('detected_times.csv')
+video_path = 'data/clock.mp4'
+processVideo(video_path)
