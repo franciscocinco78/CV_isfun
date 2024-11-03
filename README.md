@@ -8,8 +8,4 @@ It's like a plane propeller with numbers around it, people can somehow tell you 
 # To do:
 - [x] Task 2-1
 - [X] Task 2-2
-- [ ] Task 2-3
-  - [X]  Get time of every frame without crashing :)
-  - [X]  Export time of each frame to .csv file
-  - [X]  Troubleshoot sudden minute or hour changes (add memory ?)
-  - [ ]  Fix random seconds pointer jumps
+- [X] Task 2-3
