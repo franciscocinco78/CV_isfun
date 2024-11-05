@@ -1,6 +1,6 @@
 # Project Instructions
 
-This project contains scripts organized by tasks. Each task involves specific files, and to run them, you need to update the file paths for the images or videos as described below. All the mentioned scripts below are located on the folder ´code_python´
+This project contains scripts organized by tasks. Each task involves specific files, and to run them, you need to update the file paths for the images or videos as described below. All the mentioned scripts below are located on the folder `code_python`
 
 ---
 
